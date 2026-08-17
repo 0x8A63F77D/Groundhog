@@ -2306,9 +2306,12 @@ Additional numeric preconditions for disk-based overlay (from `SetMaximumSize` a
 
 ### Return value convention
 
-Every method page in the reference uses the identical sentence: *"Returns an HRESULT value that indicates WMI status or a WMI error."* linking to
+Every method page in the reference states a Return Value that links to
 <https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-non-error-constants> and
-<https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-error-constants>.
+<https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-error-constants>, but the sentence wording is not identical — two variants appear (verbatim per page, as transcribed above):
+
+- *"Returns an HRESULT value that indicates WMI status or a WMI error."* — used by every method on `UWF_Filter`, `UWF_Overlay`, `UWF_OverlayConfig`, `UWF_Servicing`, and `UWF_RegistryFilter`, plus `UWF_Volume.AddExclusion` and `UWF_Volume.SetBindByDriveLetter`.
+- *"Returns an HRESULT value that indicates WMI status or a WMI error constant."* — used by the remaining `UWF_Volume` methods: `CommitFile`, `CommitFileDeletion`, `FindExclusion`, `GetExclusions`, `Protect`, `RemoveExclusion`, `Unprotect` (and `RemoveAllExclusions`, whose page has the verbatim typo "WMI errorj constant" — see line above).
 
 **No UWF-specific HRESULT values are documented on any page.** The only enumerated status codes anywhere in the reference are:
 
