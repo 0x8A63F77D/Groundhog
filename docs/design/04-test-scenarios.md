@@ -18,7 +18,10 @@
 | U10 | `Step` 并发不变量 C1 | Executing 中再来 CommandRequested | 状态不变、无效果 |
 | U11 | `Step` 并发不变量 C3 | 发读 A(seq=1)、手动刷新发读 B(seq=2)、B 先到、A 后到 | 最终 Snapshot = B；A 到达时状态不变 |
 | U11b | `Step` `CommandThrew` | Executing 中收到 `CommandThrew` | Command=Failed（合成结果）、效果含 `ShowFailureDetails` + `ReadSnapshot`；随后 `CommandCancelled` 回 None，可再发命令（不卡死） |
-| U11c | `Step` 陈旧标记 | 有快照后 `SnapshotFailed(当前 seq)` | `SnapshotIsStale=true`、Snapshot 保留；下一次 `SnapshotArrived` 后为 false |
+| U11c | `Step` 陈旧标记 | 有快照后 `SnapshotFailed(当前 seq)` | `LastReadFailure` 非空、Snapshot 保留；下一次 `SnapshotArrived` 后为 null |
+| U11e | `Step` 首次读失败 | Probe 成功、Snapshot 仍 null 时 `SnapshotFailed(当前 seq)` | Availability 仍 Available、Snapshot null、`LastReadFailure` 非空（UI 空态面板条件成立）；`RefreshRequested(Manual)` 可再次发读 |
+| U11f | `Step` 启动与重试 | `NotStarted` 收 `Started`；`NotInstalled` 收 `Started`；`Probing` 收 `Started` | 前两者 → Probing + 效果 `Probe`（Log 保留）；第三者不变无效果 |
+| U11g | `Step` 迟到探测 | Available 态收 `ProbeCompleted(NotInstalled)` | 不变 |
 | U11d | `Step` 自动刷新开关 | `AutoRefreshToggled(false)` / `(true)` | 效果 `StopTimer` / `StartTimer`；状态字段同步 |
 | U12 | 危险集合 | 每个危险命令 | 先进 AwaitingConfirm；非危险直接 Executing |
 | U13 | 渲染守卫 | 遍历所有数值渲染函数，输入 `Unavailable` | 输出为"不可用"文案，且不含 `-` 开头的数字（属性测试：任意 `Field<uint>`/`Field<int>` 输入，输出串不匹配 `-\d`） |

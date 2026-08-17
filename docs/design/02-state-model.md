@@ -46,9 +46,11 @@ public static ValidationResult ValidateThresholds(uint warning, uint critical, F
 
 ```csharp
 public sealed record AppState(
-    Availability Availability,        // Probing | Available | NotInstalled(detail) | AccessDenied(detail) | QueryFailed(detail)
-    UwfSnapshot? Snapshot,            // 最近一次成功快照
-    bool SnapshotIsStale,             // 最近一次读失败、Snapshot 是旧值 → UI 显示"数据可能过时（上次刷新失败）"
+    Availability Availability,        // NotStarted | Probing | Available | NotInstalled(detail) | AccessDenied(detail) | QueryFailed(detail)
+    UwfSnapshot? Snapshot,            // 最近一次成功快照；Available 态下也可能为 null（首次读尚未成功）
+    string? LastReadFailure,          // 最近一次读失败的摘要；成功读后清空。派生：
+                                      //   Snapshot!=null && LastReadFailure!=null → "数据可能过时"横幅（陈旧）
+                                      //   Snapshot==null && LastReadFailure!=null → "无法读取 UWF 状态"空态面板（03 §1）
     RefreshPhase Refresh,             // Idle | InFlight(seq)
     int NextReadSeq,                  // 单调递增；每次发出 ReadSnapshot 时分配并写进效果
     CommandPhase Command,             // None | AwaitingConfirm(cmd) | Executing(cmd) | Failed(cmd, result)
@@ -86,12 +88,16 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 
 | 状态（Availability / Refresh / Command） | 事件 | 新状态 | 效果 |
 |---|---|---|---|
+| NotStarted / – / – | `Started` | Probing（其余字段初始值：Snapshot=null，Log 空，`AutoRefreshEnabled=true`，`NextReadSeq=0`） | `Probe` |
+| NotInstalled \| AccessDenied \| QueryFailed / – / – | `Started`（引导页"重新检测"） | Probing；**保留** Log（重试历史可见），Snapshot 保持 null | `Probe` |
+| Probing / – / – | `Started` | 不变（探测中忽略重复点击） | 无 |
 | Probing / – / – | `ProbeCompleted(Available)` | Available / InFlight(s₀) / None，`NextReadSeq=s₀+1` | `ReadSnapshot(s₀)`, `StartTimer`（若 `AutoRefreshEnabled`） |
-| Probing / – / – | `ProbeCompleted(NotInstalled\|AccessDenied)` | 对应引导态 | 无（引导页有"重试"→`Started`） |
-| Probing / – / – | `ProbeCompleted(QueryFailed)` | QueryFailed | 无（可重试） |
-| Available / InFlight(s) / * | `SnapshotArrived(s, snap)`（seq 相等） | Refresh=Idle，Snapshot=snap，`SnapshotIsStale=false`；每个 `Unavailable` 字段追加一条 Log（级别 c，去重：同字段连续失败只记一次） | 无 |
+| Probing / – / – | `ProbeCompleted(NotInstalled\|AccessDenied)` | 对应引导态 | `StopTimer`（幂等） |
+| Probing / – / – | `ProbeCompleted(QueryFailed)` | QueryFailed | `StopTimer`（幂等） |
+| 非 Probing / – / – | `ProbeCompleted(…)` | 不变（迟到的探测结果丢弃） | 无 |
+| Available / InFlight(s) / * | `SnapshotArrived(s, snap)`（seq 相等） | Refresh=Idle，Snapshot=snap，`LastReadFailure=null`；每个 `Unavailable` 字段追加一条 Log（级别 c，去重：同字段连续失败只记一次） | 无 |
 | Available / * / * | `SnapshotArrived(s', …)`，s' ≠ 当前 InFlight 序号 | **不变**（旧读丢弃，C3） | 无 |
-| Available / InFlight(s) / * | `SnapshotFailed(s, …)` | Refresh=Idle，`SnapshotIsStale=true`（若已有 Snapshot），Log 追加 | 无 |
+| Available / InFlight(s) / * | `SnapshotFailed(s, summary)` | Refresh=Idle，`LastReadFailure=summary`（Snapshot 不动：有旧值则 UI 显示陈旧横幅，为 null 则显示空态面板，见 03 §1），Log 追加 | 无 |
 | Available / * / * | `SnapshotFailed(s', …)`，s' ≠ 当前序号 | 不变 | 无 |
 | Available / Idle / None | `RefreshRequested` | InFlight(s)，`NextReadSeq=s+1` | `ReadSnapshot(s)` |
 | Available / InFlight(s) / * | `RefreshRequested(Manual)` | InFlight(s')，s'=NextReadSeq（**取代**在飞读，旧读到达后按 C3 丢弃） | `ReadSnapshot(s')` |
