@@ -15,6 +15,7 @@
 | U7 | `Diff` 列表 | Next 多一项 / 少一项 / 增删同时 / 顺序不同内容相同 | 新增 / 移除 / 两条 / 无 pending |
 | U8 | 校验函数 | 合法与非法路径、注册表键、Disk 上限 <1024、warning≥critical（含相等，参考文档"warning 必须严格小于 critical"） | 对应 `ValidationResult` |
 | U9 | `Step` 转移表 | 02 §3.4 每一行 | 新状态 + 效果列表精确相等 |
+| U9b | `Step` 穷举与纯度（C0） | 状态 × 事件全组合枚举 | 每个组合都有定义（文档未列的 = 不变、无效果）；`Step` 用固定 `At` 的事件在两次运行中产出逐字节相同的状态（含 `LogEntry.At`） |
 | U10 | `Step` 并发不变量 C1 | Executing 中再来 CommandRequested | 状态不变、无效果 |
 | U11 | `Step` 并发不变量 C3 | 发读 A(seq=1)、手动刷新发读 B(seq=2)、B 先到、A 后到 | 最终 Snapshot = B；A 到达时状态不变 |
 | U11b | `Step` `CommandThrew` | Executing 中收到 `CommandThrew` | Command=Failed（合成结果）、效果含 `ShowFailureDetails` + `ReadSnapshot`；随后 `CommandCancelled` 回 None，可再发命令（不卡死） |

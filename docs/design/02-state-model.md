@@ -60,18 +60,20 @@ public sealed record AppState(
 
 ### 3.2 事件（封闭集合）
 
+**不变量 C0（纯度）**：`Step(state, event) → (state, effects)` 的输入只有这两个参数。时间、序号、随机数、IO 结果——一切非确定性——**只能作为事件的字段进入**，或从 `state` 派生；`Step` 内部不读时钟、不生成 ID、不做 IO。为此**每个事件都带 `At: DateTimeOffset`**（薄壳在构造事件时打戳），`LogEntry.At` 一律取自触发它的事件的 `At`。实现时转移表按 **状态 × 事件 穷举生成**，文档未列出的组合默认"不变、无效果"，并有一条测试断言穷举表无遗漏——下面的表是"有行为的行"，不是全表。
+
 ```
-Started
-ProbeCompleted(UwfAvailability)
-RefreshRequested(source: Manual | Timer | AfterCommand)
-SnapshotArrived(seq, UwfSnapshot)        // seq 回带发出时的序号
-SnapshotFailed(seq, exception summary)
-AutoRefreshToggled(bool on)
-CommandRequested(UwfCommand)             // UwfCommand = 封闭 union，一项对应 IUwfProvider 的一个方法
-CommandConfirmed / CommandCancelled       // 仅危险命令经过
-CommandCompleted(UwfCommandResult)
-CommandThrew(exception summary)          // provider 编程错误，不是业务失败
-RebootRequested                          // 一键跳转重启 → 转成 CommandRequested(RestartSystem) 走危险确认
+Started(At)
+ProbeCompleted(At, UwfAvailability)
+RefreshRequested(At, source: Manual | Timer | AfterCommand)
+SnapshotArrived(At, seq, UwfSnapshot)    // seq 回带发出时的序号
+SnapshotFailed(At, seq, exception summary)
+AutoRefreshToggled(At, bool on)
+CommandRequested(At, UwfCommand)         // UwfCommand = 封闭 union，一项对应 IUwfProvider 的一个方法
+CommandConfirmed(At) / CommandCancelled(At)   // 仅危险命令经过
+CommandCompleted(At, UwfCommandResult)
+CommandThrew(At, exception summary)      // provider 编程错误，不是业务失败
+RebootRequested(At)                      // 一键跳转重启 → 转成 CommandRequested(RestartSystem) 走危险确认
 ```
 
 ### 3.3 效果（薄壳执行）
@@ -136,7 +138,7 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 ## 6. 日志区条目
 
 ```csharp
-public sealed record LogEntry(DateTimeOffset At, LogLevel Level, string Text, string? Detail);
+public sealed record LogEntry(DateTimeOffset At, LogLevel Level, string Text, string? Detail);   // At = 触发事件的 At（C0），Step 不读时钟
 ```
 - 级别 c：`"读取 UWF_Overlay.OverlayConsumption 失败：<Detail>；该字段显示为不可用"`。
 - 级别 d：`"UWF_OverlayConfig.SetType 返回 0x80070005"` + Detail 为系统消息原文。
