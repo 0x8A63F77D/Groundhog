@@ -23,6 +23,7 @@
 ```
 
 - 顶栏两枚状态胶囊直接来自 `FilterState`；`Unavailable` 时显示"未知"，不显示开/关。
+- `SnapshotIsStale=true` 时顶栏刷新按钮旁出现"数据可能过时（上次刷新失败，见日志）"横幅；成功刷新后消失。
 - 左侧导航"待重启 (n)"的 n = `Diff(snapshot).Count`；n=0 时不显示计数。
 - 日志区常驻，可折叠。
 

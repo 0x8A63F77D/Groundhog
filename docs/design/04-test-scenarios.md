@@ -16,7 +16,10 @@
 | U8 | 校验函数 | 合法与非法路径、注册表键、Disk 上限 <1024、warning≥critical（含相等，参考文档"warning 必须严格小于 critical"） | 对应 `ValidationResult` |
 | U9 | `Step` 转移表 | 02 §3.4 每一行 | 新状态 + 效果列表精确相等 |
 | U10 | `Step` 并发不变量 C1 | Executing 中再来 CommandRequested | 状态不变、无效果 |
-| U11 | `Step` 并发不变量 C3 | 发读 A、发读 B、B 先到、A 后到 | 最终 Snapshot = B |
+| U11 | `Step` 并发不变量 C3 | 发读 A(seq=1)、手动刷新发读 B(seq=2)、B 先到、A 后到 | 最终 Snapshot = B；A 到达时状态不变 |
+| U11b | `Step` `CommandThrew` | Executing 中收到 `CommandThrew` | Command=Failed（合成结果）、效果含 `ShowFailureDetails` + `ReadSnapshot`；随后 `CommandCancelled` 回 None，可再发命令（不卡死） |
+| U11c | `Step` 陈旧标记 | 有快照后 `SnapshotFailed(当前 seq)` | `SnapshotIsStale=true`、Snapshot 保留；下一次 `SnapshotArrived` 后为 false |
+| U11d | `Step` 自动刷新开关 | `AutoRefreshToggled(false)` / `(true)` | 效果 `StopTimer` / `StartTimer`；状态字段同步 |
 | U12 | 危险集合 | 每个危险命令 | 先进 AwaitingConfirm；非危险直接 Executing |
 | U13 | 渲染守卫 | 遍历所有数值渲染函数，输入 `Unavailable` | 输出为"不可用"文案，且不含 `-` 开头的数字（属性测试：任意 `Field<uint>`/`Field<int>` 输入，输出串不匹配 `-\d`） |
 | U14 | 日志去重 | 同字段连续两次快照都 Unavailable | 只一条日志 |

@@ -118,12 +118,14 @@ public interface IUwfProvider
     Task<UwfCommandResult> ShutdownSystemAsync(CancellationToken ct);         // 立即
     Task<UwfCommandResult> RestartSystemAsync(CancellationToken ct);          // 裁决 D7，[待 VM 确认]
 
-    // 卷 [ref: UWF_Volume]，全部作用于 CurrentSession=false 实例（裁决 D3）
+    // 卷 [ref: UWF_Volume] —— 配置类：作用于 CurrentSession=false 实例（裁决 D3）
     Task<UwfCommandResult> ProtectVolumeAsync(VolumeKey v, CancellationToken ct);
     Task<UwfCommandResult> UnprotectVolumeAsync(VolumeKey v, CancellationToken ct);
     Task<UwfCommandResult> SetBindByDriveLetterAsync(VolumeKey v, bool byDriveLetter, CancellationToken ct); // 参数名/语义 B2 [待 VM 确认]
     Task<UwfCommandResult> AddFileExclusionAsync(VolumeKey v, string volumeRelativePath, CancellationToken ct);
     Task<UwfCommandResult> RemoveFileExclusionAsync(VolumeKey v, string volumeRelativePath, CancellationToken ct);
+    // 卷 —— 提交类：立即写穿到底层卷，不产生 pending；作用于哪个实例文档未说明 [待 VM 确认]（实验 0 步骤 8），
+    // 不受 D3 约束。Mock 按"作用于 Current 实例、立即生效"实现并在代码注释标出。
     Task<UwfCommandResult> CommitFileAsync(VolumeKey v, string volumeRelativePath, CancellationToken ct);
     Task<UwfCommandResult> CommitFileDeletionAsync(VolumeKey v, string volumeRelativePath, CancellationToken ct);
 

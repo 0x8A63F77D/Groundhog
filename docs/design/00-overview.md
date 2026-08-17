@@ -25,7 +25,7 @@
 |---|---|---|
 | D1 | 实例枚举用"枚举整类 + 在 C# 里按类型化 key 过滤"，**不用 WQL 字符串过滤**（`UWF_OverlayConfig` 也不用）。 | 官方示例除 OverlayConfig 外全是客户端过滤；WQL 拼字符串是 locale/转义风险面，而枚举结果本来就只有 2 个实例。 |
 | D2 | 写操作一律调**方法**（`Protect()`、`AddExclusion()`…），只有 `PersistDomainSecretKey` / `PersistTSCAL` 没有对应方法，才走属性写。 | 参考 §"Cross-cutting facts"：所有官方示例在有方法时都用方法；属性写是否生效 `[待 VM 确认]`。 |
-| D3 | 写操作只针对 `CurrentSession=false` 实例；provider 在调用前断言这一点（不是靠调用方记住）。 | brief 已知坑 1；对 `CurrentSession=true` 写的行为 `[文档未说明]`——所以结构上禁止。 |
+| D3 | **配置类**写操作（保护开关、绑定方式、排除增删、overlay 配置、servicing、persist 开关）只针对 `CurrentSession=false` 实例；provider 在调用前断言这一点（不是靠调用方记住）。**提交类**（`CommitFile` / `CommitFileDeletion` / `CommitRegistry` / `CommitRegistryDeletion`）是"立即写穿"语义，不产生 pending，不受 D3 约束；它们该在哪个实例上调 `[待 VM 确认]`（实验 0 步骤 8）。 | brief 已知坑 1；对 `CurrentSession=true` 写配置的行为 `[文档未说明]`——所以结构上禁止。提交类方法不在参考"重启后生效"清单里，且 UI 把它描述为立即操作，二者语义不同。 |
 | D4 | `GetExclusions` 返回 null → provider 归一化为空列表；接口以上永远不见 null。 | 参考 §C：文档明写"设为 null"。 |
 | D5 | `UWF_OverlayConfig.MaximumSize` 文档为 SInt32；provider 读到负值 → `Unavailable(OutOfRange)`，不渲染。 | brief"任何位置不出现负数 MB"；负值语义 `[文档未说明]`。 |
 | D6 | overlay 分段条分母 = `OverlayConsumption + AvailableSpace`（同一类同一次读取），`MaximumSize` 只做旁注对照。 | 两者关系 `[文档未说明]`；用同源数据画图避免跨类不一致产生的负数段。 |
@@ -82,6 +82,7 @@ brief MVP 要求"HORM 状态显示"，但官方 9 个类都没有 HORM 属性/�
 5. 以非管理员运行步骤 1–3：记录异常形状——错误级别 (b) 的探测依据。
 6. `UWF_Filter.RestartSystem()` 是否可调（B7）；`UWF_Overlay.SetWarningThreshold` 是否需要重启才生效（文档未说明）。
 7. `PersistTSCAL` 属性直接写是否生效（D2）。
+8. `CommitFile` / `CommitRegistry` 在 `CurrentSession=true` 与 `=false` 实例上各调一次：哪个成功、返回什么 HRESULT（D3 提交类的实例选择）。
 
 结果文件入库到 `docs/reference/experiment-0-results.json`（里程碑 2 PR (c)），设计文档里所有 `[待 VM 确认]` 据此收口。
 

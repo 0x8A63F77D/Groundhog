@@ -48,7 +48,9 @@ public static ValidationResult ValidateThresholds(uint warning, uint critical, F
 public sealed record AppState(
     Availability Availability,        // Probing | Available | NotInstalled(detail) | AccessDenied(detail) | QueryFailed(detail)
     UwfSnapshot? Snapshot,            // 最近一次成功快照
-    RefreshPhase Refresh,             // Idle | InFlight
+    bool SnapshotIsStale,             // 最近一次读失败、Snapshot 是旧值 → UI 显示"数据可能过时（上次刷新失败）"
+    RefreshPhase Refresh,             // Idle | InFlight(seq)
+    int NextReadSeq,                  // 单调递增；每次发出 ReadSnapshot 时分配并写进效果
     CommandPhase Command,             // None | AwaitingConfirm(cmd) | Executing(cmd) | Failed(cmd, result)
     ImmutableList<LogEntry> Log,      // 操作日志区（含级别 c 的字段降级说明）
     bool AutoRefreshEnabled);
@@ -60,8 +62,9 @@ public sealed record AppState(
 Started
 ProbeCompleted(UwfAvailability)
 RefreshRequested(source: Manual | Timer | AfterCommand)
-SnapshotArrived(UwfSnapshot)
-SnapshotFailed(exception summary)
+SnapshotArrived(seq, UwfSnapshot)        // seq 回带发出时的序号
+SnapshotFailed(seq, exception summary)
+AutoRefreshToggled(bool on)
 CommandRequested(UwfCommand)             // UwfCommand = 封闭 union，一项对应 IUwfProvider 的一个方法
 CommandConfirmed / CommandCancelled       // 仅危险命令经过
 CommandCompleted(UwfCommandResult)
@@ -73,7 +76,7 @@ RebootRequested                          // 一键跳转重启 → 转成 Comman
 
 ```
 Probe
-ReadSnapshot
+ReadSnapshot(seq)                        // 薄壳完成后回投 SnapshotArrived(seq, …) / SnapshotFailed(seq, …)
 Invoke(UwfCommand)
 StartTimer(interval) / StopTimer
 ShowFailureDetails(UwfCommandResult)     // 级别 d
@@ -83,26 +86,32 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 
 | 状态（Availability / Refresh / Command） | 事件 | 新状态 | 效果 |
 |---|---|---|---|
-| Probing / – / – | `ProbeCompleted(Available)` | Available / InFlight / None | `ReadSnapshot`, `StartTimer` |
+| Probing / – / – | `ProbeCompleted(Available)` | Available / InFlight(s₀) / None，`NextReadSeq=s₀+1` | `ReadSnapshot(s₀)`, `StartTimer`（若 `AutoRefreshEnabled`） |
 | Probing / – / – | `ProbeCompleted(NotInstalled\|AccessDenied)` | 对应引导态 | 无（引导页有"重试"→`Started`） |
 | Probing / – / – | `ProbeCompleted(QueryFailed)` | QueryFailed | 无（可重试） |
-| Available / InFlight / * | `SnapshotArrived` | Refresh=Idle，Snapshot 更新；每个 `Unavailable` 字段追加一条 Log（级别 c，去重：同字段连续失败只记一次） | 无 |
-| Available / InFlight / * | `SnapshotFailed` | Refresh=Idle，Log 追加；Snapshot **保留旧值**并标"陈旧" | 无 |
-| Available / Idle / None | `RefreshRequested` | InFlight | `ReadSnapshot` |
-| Available / InFlight / None | `RefreshRequested` | 不变（合并） | 无 |
+| Available / InFlight(s) / * | `SnapshotArrived(s, snap)`（seq 相等） | Refresh=Idle，Snapshot=snap，`SnapshotIsStale=false`；每个 `Unavailable` 字段追加一条 Log（级别 c，去重：同字段连续失败只记一次） | 无 |
+| Available / * / * | `SnapshotArrived(s', …)`，s' ≠ 当前 InFlight 序号 | **不变**（旧读丢弃，C3） | 无 |
+| Available / InFlight(s) / * | `SnapshotFailed(s, …)` | Refresh=Idle，`SnapshotIsStale=true`（若已有 Snapshot），Log 追加 | 无 |
+| Available / * / * | `SnapshotFailed(s', …)`，s' ≠ 当前序号 | 不变 | 无 |
+| Available / Idle / None | `RefreshRequested` | InFlight(s)，`NextReadSeq=s+1` | `ReadSnapshot(s)` |
+| Available / InFlight(s) / * | `RefreshRequested(Manual)` | InFlight(s')，s'=NextReadSeq（**取代**在飞读，旧读到达后按 C3 丢弃） | `ReadSnapshot(s')` |
+| Available / InFlight(s) / * | `RefreshRequested(Timer)` | 不变（合并，不叠加） | 无 |
+| Available / * / * | `AutoRefreshToggled(on)` | `AutoRefreshEnabled=on` | on → `StartTimer`；off → `StopTimer` |
 | Available / * / None | `CommandRequested(危险)` | Command=AwaitingConfirm | 无 |
 | Available / * / None | `CommandRequested(非危险)` | Command=Executing | `Invoke` |
 | Available / * / AwaitingConfirm | `CommandConfirmed` | Executing | `Invoke` |
 | Available / * / AwaitingConfirm | `CommandCancelled` | None | 无 |
-| Available / * / Executing | `CommandCompleted(ok)` | None；Log 追加 | `ReadSnapshot`（→ Refresh=InFlight） |
-| Available / * / Executing | `CommandCompleted(fail)` | Failed(cmd,result)；Log 追加 | `ShowFailureDetails`（级别 d）, `ReadSnapshot` |
+| Available / * / Executing | `CommandCompleted(ok)` | None；Log 追加；Refresh=InFlight(s) | `ReadSnapshot(s)` |
+| Available / * / Executing | `CommandCompleted(fail)` | Failed(cmd,result)；Log 追加；Refresh=InFlight(s) | `ShowFailureDetails`（级别 d）, `ReadSnapshot(s)` |
+| Available / * / Executing | `CommandThrew(ex)` | Failed(cmd, 合成的 `UwfCommandResult{Succeeded=false, HResult=ex.HResult, SystemMessage=ex.Message}`)；Log 追加（标"内部错误"）；Refresh=InFlight(s) | `ShowFailureDetails`, `ReadSnapshot(s)`——**不自动重试**（内部错误重试无意义，且违反 C1 的单飞原则） |
 | Available / * / Executing | `CommandRequested(任意)` | 不变（拒绝并发命令） | 无 |
 | * / * / Failed | 用户关闭详情 → `CommandCancelled` | None | 无 |
+| * / * / Failed | `CommandRequested(任意)` | 不变（先关详情） | 无 |
 
 **并发不变量**（写在这里，测试按它构造）：
 - C1：任一时刻最多一个 `Invoke` 在飞（Executing 期间拒绝新命令）。
 - C2：`ReadSnapshot` 与 `Invoke` 可以并行（读不改状态；WMI 读写并发安全性由 WMI 保证，provider 无共享可变状态）。但**命令完成后必刷新**（表中 `CommandCompleted` 行）。
-- C3：`SnapshotArrived` 只接受**最新一次**发出的读（用序号标记；旧读结果丢弃）——避免慢读覆盖新读。
+- C3：`SnapshotArrived(seq)` 只在 `seq == 当前 InFlight 序号` 时被接受；其余丢弃——避免慢读覆盖新读。序号由 `Step` 分配（`NextReadSeq`），薄壳只负责回带，不产生。
 - C4：所有 `Step` 在单一调度器上串行执行（Avalonia UI 线程或专用单线程 `SynchronizationContext`）；`Effect` 的完成以事件形式回投，不直接改状态。
 
 **测试**：转移表逐行 = 一个测试；C3 用"先发读 A、再发读 B、B 先到、A 后到 → 状态是 B"构造；不等待墙钟，测试调度器复现排序语义（方法论 §五.4）。
