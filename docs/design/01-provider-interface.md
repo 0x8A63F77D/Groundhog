@@ -182,7 +182,8 @@ public sealed class FaultPlan
 {
     public UwfAvailability ProbeResult = Available;                        // 模拟 (a)(b)
     public HashSet<string> UnavailableFields = new();                      // 路径如 "OverlayLive.ConsumptionMb"、"Volumes[C:].Next.FileExclusions" → 该字段返回 Unavailable
-    public Dictionary<string, int> MethodHResults = new();                 // "SetOverlayType" → 0x80070005 等
+    public Dictionary<string, int> MethodHResults = new();                 // "SetOverlayType" → 0x80070005 等（业务失败路径）
+    public Dictionary<string, Exception> MethodThrows = new();             // "SetCriticalThreshold" → 抛该异常（F5 异常路径；键为 WMI 方法名，复合命令可指定第几步）
     public bool EnforceDocumentedPreconditions = true;                     // SetOverlayType/MaxSize 在 Current.Filter 启用时返回非零
     public TimeSpan Latency = TimeSpan.Zero;                               // 测刷新调度用
 }

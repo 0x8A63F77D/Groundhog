@@ -110,7 +110,7 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 | Available / * / * | `SnapshotArrived(s', …)`，s' ≠ 当前 InFlight 序号 | **不变**（旧读丢弃，C3） | 无 |
 | Available / InFlight(s) / * | `SnapshotFailed(s, f)` | Refresh=Idle，`LastReadFailure=f.Message`（Snapshot 不动：有旧值则 UI 显示陈旧横幅，为 null 则显示空态面板，见 03 §1），Log 追加 | 无 |
 | Available / * / * | `SnapshotFailed(s', …)`，s' ≠ 当前序号 | 不变 | 无 |
-| Available / Idle / None | `RefreshRequested` | InFlight(s)，`NextReadSeq=s+1` | `ReadSnapshot(s)` |
+| Available / Idle / * | `RefreshRequested` | InFlight(s)，`NextReadSeq=s+1`（Command 相位不变：确认/失败弹窗打开时刷新照常，C2） | `ReadSnapshot(s)` |
 | Available / InFlight(s) / * | `RefreshRequested(Manual)` | InFlight(s')，s'=当前 `NextReadSeq`，`NextReadSeq=s'+1`（分配规则同上；**取代**在飞读，旧读到达后按 C3 丢弃） | `ReadSnapshot(s')` |
 | Available / InFlight(s) / * | `RefreshRequested(Timer)` | 不变（合并，不叠加） | 无 |
 | Available / * / * | `AutoRefreshToggled(on)` | `AutoRefreshEnabled=on` | on → `StartTimer`；off → `StopTimer` |

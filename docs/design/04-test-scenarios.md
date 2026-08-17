@@ -44,7 +44,6 @@
 | K8 | `ProtectVolumeAsync` / `Unprotect` | Next.Protected 变化，Current 不变 |
 | K9 | **配置类**写路径必为 Next 实例（`CommitFile*`/`CommitRegistry*` 不适用——D3 已排除，见 01 §4 备注：Mock 立即作用于 Current） | 任何配置类命令后 Current 侧字段不变（Mock 可直接断言；Wmi 靠 K3/K8 覆盖） |
 | K10 | 命令 HRESULT 原样 | Mock 注入 0x80070005 → `HResult == unchecked((int)0x80070005)` |
-| K10b | 命令方法 total（F5） | Mock 让某一步 WMI 调用**抛异常**（而非返回 HRESULT） | 不抛出；`Succeeded=false`、`HResult==ex.HResult`、`MethodName`=抛出的那一步、`CompletedSteps` 含之前成功的步骤 |
 | K11 | 复合命令部分失败 | Mock 让 `SetCriticalThreshold` 失败、`SetWarningThreshold` 成功 | `Succeeded=false`、`MethodName=="SetCriticalThreshold"`、`CompletedSteps==["SetWarningThreshold"]`；重读后 warning 已变、critical 未变（不回滚） |
 
 Mock 专属（故障注入）：
@@ -53,6 +52,7 @@ Mock 专属（故障注入）：
 | M3 | 逐个把每个字段路径设为 Unavailable（参数化遍历） | 每次只有该字段 Unavailable（brief 验收"注入任意单字段读取失败，其余正常"） |
 | M4 | `SimulateReboot` | Next 值迁到 Current；`Diff` 为空 |
 | M5 | `Faults.Latency = 2s` + 定时刷新 | 不并发两次读（用测试调度器计数，不用墙钟） |
+| M6 | 命令方法 total（F5）：`Faults.MethodThrows["SetCriticalThreshold"]=ex`，调 `SetOverlayThresholdsAsync`（都升，故 Critical 先调） | 不抛出；`Succeeded=false`、`HResult==ex.HResult`、`MethodName=="SetCriticalThreshold"`、`CompletedSteps==[]`；换成让第二步抛 → `CompletedSteps` 含第一步 |
 
 ## 3. UI 测试（里程碑 4，对 Mock，headless Avalonia）
 
