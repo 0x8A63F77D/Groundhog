@@ -13,7 +13,7 @@
 | U5 | `Compare` | (Ok a, Ok a) / (Ok a, Ok b) / (Unavailable, Ok) / (Ok, Unavailable) | Equal / Pending / Unknown / Unknown |
 | U6 | `Diff` | 每个 `PendingArea` 至少 4 行（见 02 §1） | 表驱动 |
 | U7 | `Diff` 列表 | Next 多一项 / 少一项 / 增删同时 / 顺序不同内容相同 | 新增 / 移除 / 两条 / 无 pending |
-| U8 | 校验函数 | 合法与非法路径、注册表键、Disk 上限 <1024、warning>critical | 对应 `ValidationResult` |
+| U8 | 校验函数 | 合法与非法路径、注册表键、Disk 上限 <1024、warning≥critical（含相等，参考文档"warning 必须严格小于 critical"） | 对应 `ValidationResult` |
 | U9 | `Step` 转移表 | 02 §3.4 每一行 | 新状态 + 效果列表精确相等 |
 | U10 | `Step` 并发不变量 C1 | Executing 中再来 CommandRequested | 状态不变、无效果 |
 | U11 | `Step` 并发不变量 C3 | 发读 A、发读 B、B 先到、A 后到 | 最终 Snapshot = B |
