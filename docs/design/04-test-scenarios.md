@@ -44,6 +44,7 @@
 | K8 | `ProtectVolumeAsync` / `Unprotect` | Next.Protected 变化，Current 不变 |
 | K9 | **配置类**写路径必为 Next 实例（`CommitFile*`/`CommitRegistry*` 不适用——D3 已排除，见 01 §4 备注：Mock 立即作用于 Current） | 任何配置类命令后 Current 侧字段不变（Mock 可直接断言；Wmi 靠 K3/K8 覆盖） |
 | K10 | 命令 HRESULT 原样 | Mock 注入 0x80070005 → `HResult == unchecked((int)0x80070005)` |
+| K10b | 命令方法 total（F5） | Mock 让某一步 WMI 调用**抛异常**（而非返回 HRESULT） | 不抛出；`Succeeded=false`、`HResult==ex.HResult`、`MethodName`=抛出的那一步、`CompletedSteps` 含之前成功的步骤 |
 | K11 | 复合命令部分失败 | Mock 让 `SetCriticalThreshold` 失败、`SetWarningThreshold` 成功 | `Succeeded=false`、`MethodName=="SetCriticalThreshold"`、`CompletedSteps==["SetWarningThreshold"]`；重读后 warning 已变、critical 未变（不回滚） |
 
 Mock 专属（故障注入）：

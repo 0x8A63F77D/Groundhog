@@ -76,7 +76,7 @@ public abstract record AppEvent(DateTimeOffset At)
     public sealed record CommandConfirmed(DateTimeOffset At) : AppEvent(At);                          // 仅危险命令经过
     public sealed record CommandCancelled(DateTimeOffset At) : AppEvent(At);                          // 取消确认 / 关闭失败详情
     public sealed record CommandCompleted(DateTimeOffset At, UwfCommandResult Result) : AppEvent(At);
-    public sealed record CommandThrew(DateTimeOffset At, FailureInfo Failure) : AppEvent(At);         // provider 编程错误，不是业务失败
+    public sealed record CommandThrew(DateTimeOffset At, FailureInfo Failure) : AppEvent(At);         // 薄壳/调度层自身的 bug；provider 是 total 的（01 F5），WMI 异常不会到这里
 }
 
 /// 异常的结构化摘要（薄壳从 Exception 提取；Step 不见 Exception 类型）

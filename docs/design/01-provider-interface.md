@@ -156,7 +156,7 @@ public interface IUwfProvider
 }
 ```
 
-- **命令不抛业务异常**：非零 HRESULT 走 `Succeeded=false`；只有 provider 自身的编程错误才抛。
+- **命令方法是 total 的（不变量 F5）**：非零 HRESULT 走 `Succeeded=false`；WMI 调用抛出的**任何异常**也在 provider 内部捕获并转成 `Succeeded=false`（`HResult=ex.HResult`、`SystemMessage=ex.Message`、`MethodName`=实际抛出的那一步、`CompletedSteps`=之前已成功的步骤）。provider 的公开方法对调用方永不抛——所以状态模型的 `CommandThrew` 只对应薄壳自身的 bug，那时没有任何 WMI 调用进度可报，用命令的静态元数据合成结果就是全部真相。复合命令按步 try/catch，进度信息永远准确。
 - **命令不自动刷新**：刷新由状态模型调度（02 §3），provider 保持无状态。
 - 路径/键格式沿官方示例（参考 §"Path/string formats"）：文件路径卷相对、以 `\` 开头、无盘符；注册表键长格式 `HKEY_LOCAL_MACHINE\...`。格式校验在状态模型层做（纯函数），provider 不做二次校验。
 
