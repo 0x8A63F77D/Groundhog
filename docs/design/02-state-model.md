@@ -101,9 +101,9 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 | Available / * / None | `CommandRequested(非危险)` | Command=Executing | `Invoke` |
 | Available / * / AwaitingConfirm | `CommandConfirmed` | Executing | `Invoke` |
 | Available / * / AwaitingConfirm | `CommandCancelled` | None | 无 |
-| Available / * / Executing | `CommandCompleted(ok)` | None；Log 追加；Refresh=InFlight(s) | `ReadSnapshot(s)` |
-| Available / * / Executing | `CommandCompleted(fail)` | Failed(cmd,result)；Log 追加；Refresh=InFlight(s) | `ShowFailureDetails`（级别 d）, `ReadSnapshot(s)` |
-| Available / * / Executing | `CommandThrew(ex)` | Failed(cmd, 合成的 `UwfCommandResult{Succeeded=false, HResult=ex.HResult, SystemMessage=ex.Message}`)；Log 追加（标"内部错误"）；Refresh=InFlight(s) | `ShowFailureDetails`, `ReadSnapshot(s)`——**不自动重试**（内部错误重试无意义，且违反 C1 的单飞原则） |
+| Available / * / Executing | `CommandCompleted(ok)` | None；Log 追加；Refresh=InFlight(s')，`NextReadSeq=s'+1`（s'=当前 `NextReadSeq`，同 96 行分配规则） | `ReadSnapshot(s')` |
+| Available / * / Executing | `CommandCompleted(fail)` | Failed(cmd,result)；Log 追加；Refresh=InFlight(s')，`NextReadSeq=s'+1`（分配规则同上） | `ShowFailureDetails`（级别 d）, `ReadSnapshot(s')` |
+| Available / * / Executing | `CommandThrew(ex)` | Failed(cmd, 合成的 `UwfCommandResult{Succeeded=false, HResult=ex.HResult, SystemMessage=ex.Message}`)；Log 追加（标"内部错误"）；Refresh=InFlight(s')，`NextReadSeq=s'+1`（分配规则同上） | `ShowFailureDetails`, `ReadSnapshot(s')`——**不自动重试**（内部错误重试无意义，且违反 C1 的单飞原则） |
 | Available / * / Executing | `CommandRequested(任意)` | 不变（拒绝并发命令） | 无 |
 | * / * / Failed | 用户关闭详情 → `CommandCancelled` | None | 无 |
 | * / * / Failed | `CommandRequested(任意)` | 不变（先关详情） | 无 |
