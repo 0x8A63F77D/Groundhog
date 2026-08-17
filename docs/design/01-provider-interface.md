@@ -104,8 +104,9 @@ public sealed record UwfCommandResult(
     bool Succeeded,
     int HResult,                 // 方法返回值原样；0 = S_OK
     string ClassName,
-    string MethodName,
-    string? SystemMessage);      // 本地化文本，只展示
+    string MethodName,           // 失败时 = 失败的那一步的 WMI 方法名
+    string? SystemMessage,       // 本地化文本，只展示
+    IReadOnlyList<string> CompletedSteps);   // 复合命令里失败前已成功的 WMI 方法名（单步命令恒为空）
 
 public interface IUwfProvider
 {
@@ -143,7 +144,9 @@ public interface IUwfProvider
 
     // Overlay 阈值 [ref: UWF_Overlay] —— 复合方法：一次设置两个阈值。WMI 只有 SetWarningThreshold / SetCriticalThreshold 两个单独方法，
     // 且文档要求 warning < critical；provider 内部按安全顺序调两次（两者都升 → 先 critical 后 warning；都降 → 先 warning 后 critical；
-    // 一升一降 → 任意），第一次失败即停止并返回该次的结果（MethodName 指明是哪一个）。顺序规则是 WMI 怪癖，按不变量 3 住在 provider 里，
+    // 一升一降 → 任意），第一次失败即停止并返回该次的结果（MethodName 指明是哪一个，CompletedSteps 列出已成功的那一步）。
+    // **部分失败不回滚**：回滚本身也是一次可能失败的 WMI 调用，且命令后必刷新会把真实状态带回 UI；诚实呈现优于制造第二个失败点。
+    // 顺序规则是 WMI 怪癖，按不变量 3 住在 provider 里，
     // 状态模型只见一个命令（满足 C1 单飞）。是否需重启 [待 VM 确认]。
     Task<UwfCommandResult> SetOverlayThresholdsAsync(uint warningMb, uint criticalMb, CancellationToken ct);
 

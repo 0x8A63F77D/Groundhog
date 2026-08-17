@@ -128,6 +128,12 @@
  系统消息：拒绝访问。          （原文，可能是本地化文本）
  [复制详情] [关闭]
 ```
+复合命令部分失败时（`CompletedSteps` 非空）多一段：
+```
+ 已生效：SetWarningThreshold        ← 来自 CompletedSteps
+ 未生效：SetCriticalThreshold（上面的失败）
+ 提示：面板已按当前真实状态刷新。
+```
 
 ## 10. 二次确认弹窗（危险操作）
 
