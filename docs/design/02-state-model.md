@@ -35,7 +35,7 @@ public static IReadOnlyList<PendingChange> Diff(UwfSnapshot s);
 ```csharp
 public static ValidationResult ValidateFileExclusionPath(string s);   // 必须以 '\' 开头、不含盘符、非空、无非法字符
 public static ValidationResult ValidateRegistryKey(string s);         // 必须以 HKEY_LOCAL_MACHINE\ / HKEY_USERS\ ... 长格式开头
-public static ValidationResult ValidateOverlaySize(OverlayType t, uint mb);   // Disk ≥ 1024（文档）
+public static ValidationResult ValidateOverlaySize(OverlayType t, int mb);    // 类型同 MaximumSizeMb（SInt32），非 uint；mb ≥ 0 且 Disk ≥ 1024（文档）
 public static ValidationResult ValidateThresholds(uint warning, uint critical, Field<int> maxMb); // warning < critical（严格小于，参考 §UWF_Overlay.SetWarningThreshold Remarks："The warning threshold must be lower than the critical threshold."）；均 ≤ max（若 max 已知）
 ```
 格式规则只来自参考 §"Path/string formats"；文档没规定的（如是否允许尾随 `\`）不校验，交给 WMI 返回 HRESULT（级别 d）。

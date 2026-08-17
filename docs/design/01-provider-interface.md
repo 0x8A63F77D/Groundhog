@@ -139,7 +139,7 @@ public interface IUwfProvider
 
     // Overlay 配置 [ref: UWF_OverlayConfig]，文档前置条件：当前 session UWF 必须已禁用
     Task<UwfCommandResult> SetOverlayTypeAsync(OverlayType type, CancellationToken ct);
-    Task<UwfCommandResult> SetOverlayMaximumSizeAsync(uint sizeMb, CancellationToken ct);  // Disk 型 ≥1024
+    Task<UwfCommandResult> SetOverlayMaximumSizeAsync(int sizeMb, CancellationToken ct);   // 类型与 MaximumSizeMb（SInt32）一致，非 uint，避免溢出；非负 且 Disk 型 ≥1024
 
     // Overlay 阈值 [ref: UWF_Overlay]
     Task<UwfCommandResult> SetWarningThresholdAsync(uint sizeMb, CancellationToken ct);    // 是否需重启 [待 VM 确认]
