@@ -73,6 +73,9 @@ Windows UWF（Unified Write Filter）单机图形管理工具，替代 `uwfmgr.e
 
 - 追踪走平台原生（issues / milestones / PR body），不堆本地 markdown 账本；规格/计划进 `docs/`。
 - 一个小特性 = 一个 PR，评审+CI 全绿即按持久政策自主合并；合并即删分支；未合并分支没点名绝不删。
+- **评审机器：Codex。** 在 PR 上评论 `@codex review` 触发；评审以 `chatgpt-codex-connector` 的 review 提交，通常 4-5 分钟到达。每次推新 head 后重新触发。clean 判定只对最终 commit 有效，结论后 ≥60 秒再拉一次行内明细。
+- **合并政策（Owner 2026-08-17 原话）：**"Github上有Codex review做评审，走PR flow（PR codex会review）"。Controller 解读：Codex 对最终 head 无未处理发现 + CI 绿 → 可自主合并；语义类发现（涉及 brief/方法论的裁决）升级给 Owner，升级即冻结。解读若与 Owner 本意不符，以 Owner 修正为准并回写此处。
+- Owner 交付的文档（`docs/methodology.md`、`docs/project-brief.md`）是成品：评审对其提出的发现**升级给 Owner**，不由代理改写。
 - 计划编写时标出 PR 切分点。
 - "只写文档"任务若需断言代码未强制的属性 → 已变成代码任务，上报 Controller。
 - YAML frontmatter 含 `: ` `#` `[` 的字符串必须加引号。
