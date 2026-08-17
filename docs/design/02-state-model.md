@@ -62,25 +62,34 @@ public sealed record AppState(
 
 **不变量 C0（纯度）**：`Step(state, event) → (state, effects)` 的输入只有这两个参数。时间、序号、随机数、IO 结果——一切非确定性——**只能作为事件的字段进入**，或从 `state` 派生；`Step` 内部不读时钟、不生成 ID、不做 IO。为此**每个事件都带 `At: DateTimeOffset`**（薄壳在构造事件时打戳），`LogEntry.At` 一律取自触发它的事件的 `At`。实现时转移表按 **状态 × 事件 穷举生成**，文档未列出的组合默认"不变、无效果"，并有一条测试断言穷举表无遗漏——下面的表是"有行为的行"，不是全表。
 
-```
-Started(At)
-ProbeCompleted(At, UwfAvailability)
-RefreshRequested(At, source: Manual | Timer | AfterCommand)
-SnapshotArrived(At, seq, UwfSnapshot)    // seq 回带发出时的序号
-SnapshotFailed(At, seq, exception summary)
-AutoRefreshToggled(At, bool on)
-CommandRequested(At, UwfCommand)         // UwfCommand = 封闭 union，一项对应 IUwfProvider 的一个方法
-CommandConfirmed(At) / CommandCancelled(At)   // 仅危险命令经过
-CommandCompleted(At, UwfCommandResult)
-CommandThrew(At, exception summary)      // provider 编程错误，不是业务失败
+```csharp
+/// 封闭事件集合。字段即全部载荷：转移表只能引用这里声明的字段（C0）。
+public abstract record AppEvent(DateTimeOffset At)
+{
+    public sealed record Started(DateTimeOffset At) : AppEvent(At);
+    public sealed record ProbeCompleted(DateTimeOffset At, UwfAvailability Result) : AppEvent(At);
+    public sealed record RefreshRequested(DateTimeOffset At, RefreshSource Source) : AppEvent(At);   // Manual | Timer
+    public sealed record SnapshotArrived(DateTimeOffset At, int Seq, UwfSnapshot Snapshot) : AppEvent(At);
+    public sealed record SnapshotFailed(DateTimeOffset At, int Seq, FailureInfo Failure) : AppEvent(At);
+    public sealed record AutoRefreshToggled(DateTimeOffset At, bool On) : AppEvent(At);
+    public sealed record CommandRequested(DateTimeOffset At, UwfCommand Command) : AppEvent(At);     // UwfCommand = 封闭 union，一项对应 IUwfProvider 的一个方法
+    public sealed record CommandConfirmed(DateTimeOffset At) : AppEvent(At);                          // 仅危险命令经过
+    public sealed record CommandCancelled(DateTimeOffset At) : AppEvent(At);                          // 取消确认 / 关闭失败详情
+    public sealed record CommandCompleted(DateTimeOffset At, UwfCommandResult Result) : AppEvent(At);
+    public sealed record CommandThrew(DateTimeOffset At, FailureInfo Failure) : AppEvent(At);         // provider 编程错误，不是业务失败
+}
+
+/// 异常的结构化摘要（薄壳从 Exception 提取；Step 不见 Exception 类型）
+public sealed record FailureInfo(int HResult, string Message, string ExceptionType);
 // 注：没有单独的 RebootRequested 事件——"一键跳转重启"按钮直接发 CommandRequested(RestartSystem)，走危险确认（少一个概念）。
+// 注：RefreshRequested 没有 AfterCommand 来源——命令后的刷新由 CommandCompleted/CommandThrew 行直接发 ReadSnapshot 效果，不经事件。
 ```
 
 ### 3.3 效果（薄壳执行）
 
 ```
 Probe
-ReadSnapshot(seq)                        // 薄壳完成后回投 SnapshotArrived(seq, …) / SnapshotFailed(seq, …)
+ReadSnapshot(seq)                        // 薄壳完成后回投 SnapshotArrived(At, seq, snapshot) / SnapshotFailed(At, seq, FailureInfo)
 Invoke(UwfCommand)
 StartTimer(interval) / StopTimer
 ShowFailureDetails(UwfCommandResult)     // 级别 d
@@ -99,7 +108,7 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 | 非 Probing / – / – | `ProbeCompleted(…)` | 不变（迟到的探测结果丢弃） | 无 |
 | Available / InFlight(s) / * | `SnapshotArrived(s, snap)`（seq 相等） | Refresh=Idle，Snapshot=snap，`LastReadFailure=null`；每个 `Unavailable` 字段追加一条 Log（级别 c，去重：同字段连续失败只记一次） | 无 |
 | Available / * / * | `SnapshotArrived(s', …)`，s' ≠ 当前 InFlight 序号 | **不变**（旧读丢弃，C3） | 无 |
-| Available / InFlight(s) / * | `SnapshotFailed(s, summary)` | Refresh=Idle，`LastReadFailure=summary`（Snapshot 不动：有旧值则 UI 显示陈旧横幅，为 null 则显示空态面板，见 03 §1），Log 追加 | 无 |
+| Available / InFlight(s) / * | `SnapshotFailed(s, f)` | Refresh=Idle，`LastReadFailure=f.Message`（Snapshot 不动：有旧值则 UI 显示陈旧横幅，为 null 则显示空态面板，见 03 §1），Log 追加 | 无 |
 | Available / * / * | `SnapshotFailed(s', …)`，s' ≠ 当前序号 | 不变 | 无 |
 | Available / Idle / None | `RefreshRequested` | InFlight(s)，`NextReadSeq=s+1` | `ReadSnapshot(s)` |
 | Available / InFlight(s) / * | `RefreshRequested(Manual)` | InFlight(s')，s'=当前 `NextReadSeq`，`NextReadSeq=s'+1`（分配规则同上；**取代**在飞读，旧读到达后按 C3 丢弃） | `ReadSnapshot(s')` |
@@ -111,7 +120,7 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 | Available / * / AwaitingConfirm | `CommandCancelled` | None | 无 |
 | Available / * / Executing | `CommandCompleted(ok)` | None；Log 追加；Refresh=InFlight(s')，`NextReadSeq=s'+1`（s'=当前 `NextReadSeq`，同 96 行分配规则） | `ReadSnapshot(s')` |
 | Available / * / Executing | `CommandCompleted(fail)` | Failed(cmd,result)；Log 追加；Refresh=InFlight(s')，`NextReadSeq=s'+1`（分配规则同上） | `ShowFailureDetails`（级别 d）, `ReadSnapshot(s')` |
-| Available / * / Executing | `CommandThrew(ex)` | Failed(cmd, 合成的 `UwfCommandResult{Succeeded=false, HResult=ex.HResult, SystemMessage=ex.Message}`)；Log 追加（标"内部错误"）；Refresh=InFlight(s')，`NextReadSeq=s'+1`（分配规则同上） | `ShowFailureDetails`, `ReadSnapshot(s')`——**不自动重试**（内部错误重试无意义，且违反 C1 的单飞原则） |
+| Available / * / Executing | `CommandThrew(f)` | Failed(cmd, 合成的 `UwfCommandResult{Succeeded=false, HResult=f.HResult, ClassName=cmd 的目标类, MethodName=cmd 的目标方法, SystemMessage=f.Message, CompletedSteps=[]}`)；Log 追加（标"内部错误"）；Refresh=InFlight(s')，`NextReadSeq=s'+1`（分配规则同上） | `ShowFailureDetails`, `ReadSnapshot(s')`——**不自动重试**（内部错误重试无意义，且违反 C1 的单飞原则） |
 | Available / * / Executing | `CommandRequested(任意)` | 不变（拒绝并发命令） | 无 |
 | * / * / Failed | 用户关闭详情 → `CommandCancelled` | None | 无 |
 | * / * / Failed | `CommandRequested(任意)` | 不变（先关详情） | 无 |
@@ -131,9 +140,24 @@ ShowFailureDetails(UwfCommandResult)     // 级别 d
 - 命令后：必刷新（表中已列）。
 - 首版不做增量刷新（只读 overlay）；若 5 秒全量读在 VM 上可感知卡顿（`[待里程碑 3 实测]`），再拆"live 子快照"。
 
-## 5. 危险命令集合（二次确认，brief 横切要求）
+## 5. 命令元数据与危险集合（二次确认，brief 横切要求）
 
-`DisableFilter`, `UnprotectVolume`, `CommitFile`, `CommitFileDeletion`, `CommitRegistry`, `CommitRegistryDeletion`, `ShutdownSystem`, `RestartSystem`, `SetOverlayType`, `SetOverlayMaximumSize`（后两者因文档前置条件"UWF 须已禁用"且影响下次启动）。集合是代码里的一个静态只读集合，UI 不各自判断。
+```csharp
+/// 封闭 union：一项对应 IUwfProvider 的一个方法。元数据随命令走，Step / UI / 日志都从这里取，不各自判断。
+public abstract record UwfCommand(
+    string ClassName,            // WMI 目标类，如 "UWF_OverlayConfig"（复合命令取主类）
+    string MethodName,           // WMI 目标方法，如 "SetType"（复合命令取第一步）
+    bool IsDangerous,            // true → 走 AwaitingConfirm
+    bool TakesEffectAfterReboot, // true → 成功日志附"重启后生效"
+    string ProductDescription)   // 产品语言，用于确认弹窗与日志，如 "禁用 UWF 保护"
+{
+    public sealed record DisableFilter() : UwfCommand("UWF_Filter", "Disable", IsDangerous: true, TakesEffectAfterReboot: true, "禁用 UWF 保护");
+    public sealed record SetOverlayThresholds(uint WarningMb, uint CriticalMb) : UwfCommand("UWF_Overlay", "SetWarningThreshold", false, false /*[待 VM 确认]*/, "设置 overlay 阈值");
+    // …其余每个 IUwfProvider 方法一项，字段值来自参考文件"takes effect after restart"清单
+}
+```
+
+危险（`IsDangerous=true`）：`DisableFilter`, `UnprotectVolume`, `CommitFile`, `CommitFileDeletion`, `CommitRegistry`, `CommitRegistryDeletion`, `ShutdownSystem`, `RestartSystem`, `SetOverlayType`, `SetOverlayMaximumSize`（后两者因文档前置条件"UWF 须已禁用"且影响下次启动）。是否危险是命令的属性，不是 UI 的判断。
 
 ## 6. 日志区条目
 
@@ -142,4 +166,4 @@ public sealed record LogEntry(DateTimeOffset At, LogLevel Level, string Text, st
 ```
 - 级别 c：`"读取 UWF_Overlay.OverlayConsumption 失败：<Detail>；该字段显示为不可用"`。
 - 级别 d：`"UWF_OverlayConfig.SetType 返回 0x80070005"` + Detail 为系统消息原文。
-- 命令成功：`"已提交：<命令的产品语言描述>；重启后生效"`（是否需重启来自命令元数据，非猜测）。
+- 命令成功：`"已提交：<ProductDescription>；重启后生效"`（后半句仅当 `TakesEffectAfterReboot`，来自 §5 元数据，非猜测）。
