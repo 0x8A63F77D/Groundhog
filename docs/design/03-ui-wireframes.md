@@ -132,7 +132,7 @@
 ```
  已生效：SetWarningThreshold        ← 来自 CompletedSteps
  未生效：SetCriticalThreshold（上面的失败）
- 提示：面板已按当前真实状态刷新。
+ 提示：面板正在刷新到最新状态（命令完成后自动重读，`ShowFailureDetails` 与 `ReadSnapshot` 同时发出，读取是异步的，弹窗打开时面板可能还没更新，见 02 §3.4）。
 ```
 
 ## 10. 二次确认弹窗（危险操作）
