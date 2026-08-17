@@ -40,7 +40,7 @@
 | K4 | `RemoveFileExclusionAsync` | 对称 |
 | K5 | `AddRegistryExclusionAsync` / Remove | 同 K3/K4 |
 | K6 | `SetOverlayTypeAsync` 在 Current 已启用时 | `Succeeded=false`，非零 HRESULT（Mock 按 `EnforceDocumentedPreconditions`；Wmi 真值 `[待 VM 确认]`——若 WMI 实际允许，此行改为记录事实并升级） |
-| K7 | `SetWarningThresholdAsync(x)` 后重读 | `WarningThresholdMb == x`（阈值是否需重启 `[待 VM 确认]`——若需，断言改到重启后） |
+| K7 | `SetOverlayThresholdsAsync(w, c)` 后重读；四种方向组合（都升 / 都降 / 一升一降 ×2） | `WarningThresholdMb == w && CriticalThresholdMb == c`（阈值是否需重启 `[待 VM 确认]`——若需，断言改到重启后）；Mock 断言两次内部调用的顺序满足每步 warning < critical |
 | K8 | `ProtectVolumeAsync` / `Unprotect` | Next.Protected 变化，Current 不变 |
 | K9 | **配置类**写路径必为 Next 实例（`CommitFile*`/`CommitRegistry*` 不适用——D3 已排除，见 01 §4 备注：Mock 立即作用于 Current） | 任何配置类命令后 Current 侧字段不变（Mock 可直接断言；Wmi 靠 K3/K8 覆盖） |
 | K10 | 命令 HRESULT 原样 | Mock 注入 0x80070005 → `HResult == unchecked((int)0x80070005)` |

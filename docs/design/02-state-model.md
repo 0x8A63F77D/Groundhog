@@ -73,7 +73,7 @@ CommandRequested(At, UwfCommand)         // UwfCommand = 封闭 union，一项�
 CommandConfirmed(At) / CommandCancelled(At)   // 仅危险命令经过
 CommandCompleted(At, UwfCommandResult)
 CommandThrew(At, exception summary)      // provider 编程错误，不是业务失败
-RebootRequested(At)                      // 一键跳转重启 → 转成 CommandRequested(RestartSystem) 走危险确认
+// 注：没有单独的 RebootRequested 事件——"一键跳转重启"按钮直接发 CommandRequested(RestartSystem)，走危险确认（少一个概念）。
 ```
 
 ### 3.3 效果（薄壳执行）

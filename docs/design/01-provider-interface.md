@@ -141,9 +141,11 @@ public interface IUwfProvider
     Task<UwfCommandResult> SetOverlayTypeAsync(OverlayType type, CancellationToken ct);
     Task<UwfCommandResult> SetOverlayMaximumSizeAsync(int sizeMb, CancellationToken ct);   // 类型与 MaximumSizeMb（SInt32）一致，非 uint，避免溢出；非负 且 Disk 型 ≥1024
 
-    // Overlay 阈值 [ref: UWF_Overlay]
-    Task<UwfCommandResult> SetWarningThresholdAsync(uint sizeMb, CancellationToken ct);    // 是否需重启 [待 VM 确认]
-    Task<UwfCommandResult> SetCriticalThresholdAsync(uint sizeMb, CancellationToken ct);
+    // Overlay 阈值 [ref: UWF_Overlay] —— 复合方法：一次设置两个阈值。WMI 只有 SetWarningThreshold / SetCriticalThreshold 两个单独方法，
+    // 且文档要求 warning < critical；provider 内部按安全顺序调两次（两者都升 → 先 critical 后 warning；都降 → 先 warning 后 critical；
+    // 一升一降 → 任意），第一次失败即停止并返回该次的结果（MethodName 指明是哪一个）。顺序规则是 WMI 怪癖，按不变量 3 住在 provider 里，
+    // 状态模型只见一个命令（满足 C1 单飞）。是否需重启 [待 VM 确认]。
+    Task<UwfCommandResult> SetOverlayThresholdsAsync(uint warningMb, uint criticalMb, CancellationToken ct);
 
     // Servicing [ref: UWF_Servicing]
     Task<UwfCommandResult> EnableServicingAsync(CancellationToken ct);
