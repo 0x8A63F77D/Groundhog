@@ -1,7 +1,26 @@
 # Groundhog — 会话规则
 
 > 本文件是每会话必加载的**精简操作规则**。完整方法论（含每条规则的出处与推理）在 [docs/methodology.md](docs/methodology.md)，冲突时以完整版为准。
-> 项目技术栈：.NET（仓库由 .NET 模板初始化；具体框架/目标平台待首个设计文档确定后回填此处）。
+> 需求的唯一权威出处是 Owner 交付的 [docs/project-brief.md](docs/project-brief.md)；与之冲突时停下报告冲突本身，不静默变通。
+
+## 项目：Groundhog
+
+Windows UWF（Unified Write Filter）单机图形管理工具，替代 `uwfmgr.exe` 日常操作。目标机：Windows 10 IoT Enterprise LTSC 2021 **中文版**。
+
+**硬性约束（不可协商，细节见 brief）：**
+- 只经 WMI 对象接口访问 UWF（`root\standardcimv2\embedded`，`System.Management` / MMI 取类型化 CIM 值）。**禁止** shell 调 `uwfmgr.exe` / `wmic` / PowerShell 解析文本。唯一例外：安全关机/重启可调系统 API 或 `shutdown.exe`（不解析输出）。
+- locale 无关；测试矩阵含 zh-CN 与 en-US。
+- 错误四级分别呈现：(a) 功能未安装 → 引导页；(b) 权限不足 → 引导页；(c) 单属性读失败 → 只降级该字段 + 日志；(d) 方法非零 HRESULT → 操作失败详情。**任何位置不得把哨兵值/错误码渲染进数值位**（永不出现负数 MB）。
+- UI 第一等公民：current session（只读）与 next session（可编辑）并排，diff 项显式标 pending reboot。
+- manifest `requireAdministrator`；.NET 8+ 单文件 self-contained；Avalonia MVVM。
+- 分层：UI → 状态模型（快照/diff/pending/刷新）→ `IUwfProvider` → `WmiUwfProvider` | `MockUwfProvider`。**Mock 不是可选项**，必须能模拟双 session、重启迁移、未安装、单字段读失败、方法报错。
+- 测试 CLI 与 GUI 共用同一个 `WmiUwfProvider`。
+
+**WMI 已知坑：** `UWF_Volume` 每卷两实例，按 `CurrentSession` 区分，只改 `false` 那个；文件排除用 `UWF_Volume.GetExclusions()` 不用 WQL 枚举 `UWF_ExcludedFile`；注册表排除走 `UWF_RegistryFilter` 方法；`UWF_Overlay` 各值 UInt32/MB，异常显示"不可用"；卷绑定方式（盘符 vs volume name）要在 UI 暴露；启动先探测命名空间，区分"未安装"与"查询失败"。
+
+**里程碑（每个结束停下等验收）：** 设计文档 → WMI 层 + mock + 单元测试 → 状态模型 → UI（对 mock）→ 闭环脚本 → VM 跑通测试矩阵 → 打包。
+
+**API 行为不明时：** 先查 Microsoft Learn UWF WMI provider reference → VM 最小实验 → 仍不确定就明说并交回 Owner。不编造。不自行扩大范围。
 
 ## 角色
 

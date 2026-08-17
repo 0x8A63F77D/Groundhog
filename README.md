@@ -1,6 +1,10 @@
 # Groundhog
 
-> 项目目标：待定（首个设计文档落地后回填）。技术栈：.NET。
+Windows **Unified Write Filter (UWF)** 的单机图形管理工具，目标是替代 `uwfmgr.exe` 的日常操作。名字取自《土拨鼠之日》：UWF 保护下的机器每次重启都醒在同一个早晨，只有例外列表里的东西带着记忆穿越循环。
+
+- 目标平台：Windows 10 IoT Enterprise LTSC 2021（含中文版）
+- 技术栈：.NET 8+ / Avalonia / WMI（`root\standardcimv2\embedded`）
+- 需求全文：[docs/project-brief.md](docs/project-brief.md)
 
 ## 协作方式
 
